@@ -233,9 +233,14 @@ inline const TString String(const int i, const int /*base*/ = 10)
 #endif
 
 struct TSourceLoc {
+    enum : unsigned int {
+        FromMacroExpansion = 1u << 0,
+    };
     void init()
     {
         name = nullptr; string = 0; line = 0; column = 0;
+        flags = 0;
+        macroExpansionId = -1;
     }
     void init(int stringNum) { init(); string = stringNum; }
     // Returns the name if it exists. Otherwise, returns the string number.
@@ -259,6 +264,8 @@ struct TSourceLoc {
     int string;
     int line;
     int column;
+    unsigned int flags;       // bitmask, e.g. FromMacroExpansion
+    int macroExpansionId;     // index into macro-expansion trace, -1 if not from macro expansion
 };
 
 class TPragmaTable : public TMap<TString, TString> {

@@ -1685,10 +1685,10 @@ typedef TVector<TStorageQualifier> TQualifierList;
 class TIntermAggregate : public TIntermOperator {
 public:
     TIntermAggregate() : TIntermOperator(EOpNull), userDefined(false), pragmaTable(nullptr) { 
-        endLoc.init();
+        endLoc.init(); startLoc.init();
     }
     TIntermAggregate(TOperator o) : TIntermOperator(o), pragmaTable(nullptr) {
-        endLoc.init();
+        endLoc.init(); startLoc.init();
     }
     ~TIntermAggregate() { delete pragmaTable; }
     virtual       TIntermAggregate* getAsAggregate()       { return this; }
@@ -1716,6 +1716,9 @@ public:
     void setEndLoc(TSourceLoc loc) { endLoc = loc; }
     TSourceLoc getEndLoc() const { return endLoc; }
 
+    void setStartLoc(TSourceLoc loc) { startLoc = loc; }
+    TSourceLoc getStartLoc() const { return startLoc; }
+
     void setLinkType(TLinkType l) { linkType = l; }
     TLinkType getLinkType() const { return linkType; }
 protected:
@@ -1734,6 +1737,7 @@ protected:
     // Marking the end source location of the aggregate.
     // This is currently only set for a compound statement or a function body, pointing to '}'.
     TSourceLoc endLoc;
+    TSourceLoc startLoc;
 };
 
 //

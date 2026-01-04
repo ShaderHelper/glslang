@@ -816,7 +816,9 @@ bool ProcessDeferred(
     TShader::Includer& includer,
     const std::string sourceEntryPointName = "",
     const TEnvironment* environment = nullptr,  // optional way of fully setting all versions, overriding the above
-    bool compileOnly = false)
+    bool compileOnly = false,
+    std::vector<TShader::MacroDefinition>* outMacroDefinitions = nullptr,
+    std::vector<TShader::MacroExpansion>* outMacroExpansions = nullptr)
 {
     // This must be undone (.pop()) by the caller, after it finishes consuming the created tree.
     GetThreadPoolAllocator().push();
@@ -1008,6 +1010,42 @@ bool ProcessDeferred(
     bool success = processingContext(*parseContext, ppContext, fullInput,
                                      versionWillBeError, *symbolTable,
                                      intermediate, optLevel, messages);
+
+    // Export macro trace for tooling (captured during preprocessing).
+    // This must happen before ppContext goes out of scope.
+    if (outMacroDefinitions) {
+        outMacroDefinitions->clear();
+        const auto& defs = ppContext.getMacroDefinitions();
+        outMacroDefinitions->reserve(defs.size());
+        for (const auto& d : defs) {
+            TShader::MacroDefinition out;
+            out.name = d.name.c_str();
+            out.functionLike = d.functionLike;
+            out.define.string = d.defineLoc.string;
+            out.define.line = d.defineLoc.line;
+            out.define.column = d.defineLoc.column;
+            if (d.defineLoc.name)
+                out.define.file = d.defineLoc.name->c_str();
+            outMacroDefinitions->push_back(std::move(out));
+        }
+    }
+    if (outMacroExpansions) {
+        outMacroExpansions->clear();
+        const auto& exps = ppContext.getMacroExpansions();
+        outMacroExpansions->reserve(exps.size());
+        for (const auto& e : exps) {
+            TShader::MacroExpansion out;
+            out.name = e.name.c_str();
+            out.functionLike = e.functionLike;
+            out.call.string = e.callLoc.string;
+            out.call.line = e.callLoc.line;
+            out.call.column = e.callLoc.column;
+            if (e.callLoc.name)
+                out.call.file = e.callLoc.name->c_str();
+            outMacroExpansions->push_back(std::move(out));
+        }
+    }
+
     intermediate.setUniqueId(symbolTable->getMaxSymbolId());
     return success;
 }
@@ -1315,14 +1353,16 @@ bool CompileDeferred(
     TShader::Includer& includer,
     const std::string sourceEntryPointName = "",
     TEnvironment* environment = nullptr,
-    bool compileOnly = false)
+    bool compileOnly = false,
+    std::vector<TShader::MacroDefinition>* outMacroDefinitions = nullptr,
+    std::vector<TShader::MacroExpansion>* outMacroExpansions = nullptr)
 {
     DoFullParse parser;
     return ProcessDeferred(compiler, shaderStrings, numStrings, inputLengths, stringNames,
                            preamble, optLevel, resources, defaultVersion,
                            defaultProfile, forceDefaultVersionAndProfile, overrideVersion,
                            forwardCompatible, messages, intermediate, parser,
-                           true, includer, sourceEntryPointName, environment, compileOnly);
+                           true, includer, sourceEntryPointName, environment, compileOnly, outMacroDefinitions, outMacroExpansions);
 }
 
 } // end anonymous namespace for local functions
@@ -1894,7 +1934,7 @@ bool TShader::parse(const TBuiltInResource* builtInResources, int defaultVersion
                            preamble, EShOptNone, builtInResources, defaultVersion,
                            defaultProfile, forceDefaultVersionAndProfile, overrideVersion,
                            forwardCompatible, messages, *intermediate, includer, sourceEntryPointName,
-                           &environment, compileOnly);
+                           &environment, compileOnly, &macroDefinitions, &macroExpansions);
 }
 
 // Fill in a string with the result of preprocessing ShaderStrings

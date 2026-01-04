@@ -203,6 +203,25 @@ public:
     int tokenize(TPpToken& ppToken);
     int tokenPaste(int token, TPpToken&);
 
+    //
+    // Macro-trace data (for tooling/LSP).
+    // glslang's AST does not retain macro nodes; this provides a side-channel of
+    // macro definitions and macro expansion sites (including function-like args).
+    //
+    struct TMacroDefinition {
+        TString name;
+        TSourceLoc defineLoc; // location of macro name in the #define
+        bool functionLike = false;
+    };
+    struct TMacroExpansion {
+        TString name;
+        TSourceLoc callLoc;    // location of macro name at call site
+        bool functionLike = false;
+    };
+
+    const TVector<TMacroDefinition>& getMacroDefinitions() const { return macroDefinitions; }
+    const TVector<TMacroExpansion>&  getMacroExpansions()  const { return macroExpansions; }
+
     class tInput {
     public:
         tInput(TPpContext* p) : done(false), pp(p) { }
@@ -216,6 +235,9 @@ public:
         virtual bool endOfReplacementList() { return false; } // true when at the end of a macro replacement list (RHS of #define)
         virtual bool isMacroInput() { return false; }
         virtual bool isStringInput() { return false; }
+        // If this input is part of a macro expansion, return the expansion id (>= 0).
+        // Otherwise return -1.
+        virtual int getMacroExpansionId() const { return -1; }
 
         // Will be called when we start reading tokens from this instance
         virtual void notifyActivated() {}
@@ -255,13 +277,16 @@ public:
                 atom(atom),
                 space(ppToken.space),
                 i64val(ppToken.i64val),
-                name(ppToken.name) { }
+                name(ppToken.name),
+                loc(ppToken.loc) { }
             int get(TPpToken& ppToken)
             {
                 ppToken.clear();
                 ppToken.space = space;
                 ppToken.i64val = i64val;
                 snprintf(ppToken.name, sizeof(ppToken.name), "%s", name.c_str());
+                // Keep the original token location as recorded when building this stream.
+                ppToken.loc = loc;
                 return atom;
             }
             bool isAtom(int a) const { return atom == a; }
@@ -273,6 +298,7 @@ public:
             bool space;        // did a space precede the token?
             long long i64val;
             TString name;
+            TSourceLoc loc;
         };
 
         TokenStream() : currentPos(0) { }
@@ -357,6 +383,10 @@ protected:
     TParseContextBase& parseContext;
     std::vector<int> lastLineTokens;
     std::vector<TSourceLoc> lastLineTokenLocs;
+
+    // Tooling-facing macro trace
+    TVector<TMacroDefinition> macroDefinitions;
+    TVector<TMacroExpansion>  macroExpansions;
     // Get the next token from *stack* of input sources, popping input sources
     // that are out of tokens, down until an input source is found that has a token.
     // Return EndOfInput when there are no more tokens to be found by doing this.
@@ -369,6 +399,18 @@ protected:
             if (token != EndOfInput || inputStack.empty())
                 break;
             popInput();
+        }
+        // Tag tokens that come from macro expansion inputs (used for AST provenance).
+        if (!inputStack.empty()) {
+            const int macroId = inputStack.back()->getMacroExpansionId();
+            if (macroId >= 0) {
+                ppToken->loc.flags |= TSourceLoc::FromMacroExpansion;
+                // Preserve an already-recorded macroExpansionId (e.g. when a macro argument
+                // token itself came from a nested macro expansion). In that case, keep the
+                // inner-most expansion id rather than overwriting with the outer expansion.
+                if (ppToken->loc.macroExpansionId < 0)
+                    ppToken->loc.macroExpansionId = macroId;
+            }
         }
         if (!inputStack.empty() && inputStack.back()->isStringInput() && !inElseSkip) {
             if (token == '\n') {
@@ -415,10 +457,12 @@ protected:
         bool peekContinuedPasting(int a) override { return mac->body.peekContinuedPasting(a); }
         bool endOfReplacementList() override { return mac->body.atEnd(); }
         bool isMacroInput() override { return true; }
+        int getMacroExpansionId() const override { return expansionId; }
 
         MacroSymbol *mac;
         TVector<TokenStream*> args;
         TVector<TokenStream*> expandedArgs;
+        int expansionId = -1;
 
     protected:
         bool prepaste;         // true if we are just before ##
@@ -514,19 +558,25 @@ protected:
     //
     // From PpTokens.cpp
     //
-    void pushTokenStreamInput(TokenStream&, bool pasting = false, bool expanded = false);
+    void pushTokenStreamInput(TokenStream&, bool pasting = false, bool expanded = false, int macroExpansionId = -1, bool preserveRecordedLoc = false);
     void UngetToken(int token, TPpToken*);
 
     class tTokenInput : public tInput {
     public:
-        tTokenInput(TPpContext* pp, TokenStream* t, bool prepasting, bool expanded) :
+        tTokenInput(TPpContext* pp, TokenStream* t, bool prepasting, bool expanded, int macroExpansionId, bool preserveRecordedLoc) :
             tInput(pp),
             tokens(t),
             lastTokenPastes(prepasting),
-            preExpanded(expanded) { }
+            preExpanded(expanded),
+            expansionId(macroExpansionId),
+            preserveRecordedLoc(preserveRecordedLoc) { }
         virtual int scan(TPpToken *ppToken) override {
             int token = tokens->getToken(pp->parseContext, ppToken);
             ppToken->fullyExpanded = preExpanded;
+            // Most token streams should inherit "current" location (macro replacement list).
+            // Some token streams (e.g. macro arguments) should preserve recorded locations.
+            if (!preserveRecordedLoc)
+                ppToken->loc = pp->parseContext.getCurrentLoc();
             if (tokens->atEnd() && token == PpAtomIdentifier) {
                 int macroAtom = pp->atomStrings.getAtom(ppToken->name);
                 MacroSymbol* macro = macroAtom == 0 ? nullptr : pp->lookupMacroDef(macroAtom);
@@ -539,10 +589,13 @@ protected:
         virtual void ungetch() override { assert(0); }
         virtual bool peekPasting() override { return tokens->peekTokenizedPasting(lastTokenPastes); }
         bool peekContinuedPasting(int a) override { return tokens->peekContinuedPasting(a); }
+        int getMacroExpansionId() const override { return expansionId; }
     protected:
         TokenStream* tokens;
         bool lastTokenPastes; // true if the last token in the input is to be pasted, rather than consumed as a token
         bool preExpanded;
+        int expansionId;
+        bool preserveRecordedLoc;
     };
 
     class tUngotTokenInput : public tInput {

@@ -153,6 +153,15 @@ int TPpContext::CPPdefine(TPpToken* ppToken)
         return token;
     }
 
+    // Record the macro definition for tooling before we potentially compare/replace it.
+    {
+        TMacroDefinition def;
+        def.name = atomStrings.getString(defAtom);
+        def.defineLoc = defineLoc;
+        def.functionLike = mac.functionLike != 0;
+        macroDefinitions.push_back(def);
+    }
+
     int pendingPoundSymbols = 0;
     TPpToken savePound;
     // record the definition of the macro
@@ -1093,7 +1102,7 @@ TPpContext::TokenStream* TPpContext::PrescanMacroArg(TokenStream& arg, TPpToken*
     // expand the argument
     TokenStream* expandedArg = new TokenStream;
     pushInput(new tMarkerInput(this));
-    pushTokenStreamInput(arg);
+    pushTokenStreamInput(arg, false, false, -1, true);
     int token;
     while ((token = scanToken(ppToken)) != tMarkerInput::marker && token != EndOfInput) {
         token = tokenPaste(token, *ppToken);
@@ -1183,7 +1192,7 @@ int TPpContext::tMacroInput::scan(TPpToken* ppToken)
             if (arg == nullptr || (pasting && !pp->parseContext.isReadingHLSL()) ) {
                 arg = args[i];
             }
-            pp->pushTokenStreamInput(*arg, prepaste, expanded);
+            pp->pushTokenStreamInput(*arg, prepaste, expanded, expansionId, true);
 
             return pp->scanToken(ppToken);
         }
@@ -1279,6 +1288,13 @@ MacroExpandResult TPpContext::MacroExpand(TPpToken* ppToken, bool expandUndef, b
 
     TSourceLoc loc = ppToken->loc;  // in case we go to the next line before discovering the error
     in->mac = macro;
+
+    // Record the macro expansion site (call location), plus arg ranges if function-like.
+    TMacroExpansion expansion;
+    expansion.name = atomStrings.getString(macroAtom);
+    expansion.callLoc = loc;
+    expansion.functionLike = macro->functionLike != 0;
+
     if (macro->functionLike) {
         // We don't know yet if this will be a successful call of a
         // function-like macro; need to look for a '(', but without trashing
@@ -1302,6 +1318,7 @@ MacroExpandResult TPpContext::MacroExpand(TPpToken* ppToken, bool expandUndef, b
         in->expandedArgs.resize(in->mac->args.size());
         for (size_t i = 0; i < in->mac->args.size(); i++)
             in->expandedArgs[i] = nullptr;
+
         size_t arg = 0;
         bool tokenRecorded = false;
         do {
@@ -1383,6 +1400,9 @@ MacroExpandResult TPpContext::MacroExpand(TPpToken* ppToken, bool expandUndef, b
         for (size_t i = 0; i < in->mac->args.size(); i++)
             in->expandedArgs[i] = PrescanMacroArg(*in->args[i], ppToken, newLineOkay);
     }
+
+    in->expansionId = (int)macroExpansions.size();
+    macroExpansions.push_back(expansion);
 
     pushInput(in);
     macro->busy = 1;

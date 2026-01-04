@@ -111,7 +111,9 @@ int TPpContext::TokenStream::getToken(TParseContextBase& parseContext, TPpToken*
         return EndOfInput;
 
     int atom = stream[currentPos++].get(*ppToken);
-    ppToken->loc = parseContext.getCurrentLoc();
+    // For most streams (e.g. macro replacement list), the recorded location can be the
+    // definition location. Callers (tTokenInput) may override loc to the current location.
+    //ppToken->loc = parseContext.getCurrentLoc();
 
     return atom;
 }
@@ -159,9 +161,9 @@ bool TPpContext::TokenStream::peekTokenizedPasting(bool lastTokenPastes)
     return !moreTokens;
 }
 
-void TPpContext::pushTokenStreamInput(TokenStream& ts, bool prepasting, bool expanded)
+void TPpContext::pushTokenStreamInput(TokenStream& ts, bool prepasting, bool expanded, int macroExpansionId, bool preserveRecordedLoc)
 {
-    pushInput(new tTokenInput(this, &ts, prepasting, expanded));
+    pushInput(new tTokenInput(this, &ts, prepasting, expanded, macroExpansionId, preserveRecordedLoc));
     ts.reset();
 }
 

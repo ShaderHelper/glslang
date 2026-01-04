@@ -704,6 +704,31 @@ public:
     EShLanguage getStage() const { return stage; }
     TIntermediate* getIntermediate() const { return intermediate; }
 
+    // ------------------------------------------------------------
+    // Macro expansion trace (for tooling/LSP)
+    //
+    // Note: glslang parses preprocessed token streams and does not keep macro
+    // nodes in the AST. This is a side-channel captured during preprocessing.
+    //
+    struct MacroLocation {
+        int string = 0;      // source string index
+        int line = 0;        // 1-based line
+        int column = 0;      // 1-based column
+        std::string file;    // optional filename (can be empty)
+    };
+    struct MacroDefinition {
+        std::string name;        // macro name
+        MacroLocation define;    // macro definition site (macro identifier in #define)
+        bool functionLike = false;
+    };
+    struct MacroExpansion {
+        std::string name;        // macro name
+        MacroLocation call;      // macro call site (macro identifier)
+        bool functionLike = false;
+    };
+    const std::vector<MacroDefinition>& getMacroDefinitions() const { return macroDefinitions; }
+    const std::vector<MacroExpansion>& getMacroExpansions() const { return macroExpansions; }
+
 protected:
     TPoolAllocator* pool;
     EShLanguage stage;
@@ -735,6 +760,10 @@ protected:
 
     // Indicates this shader is meant to be used without linking
     bool compileOnly = false;
+
+    // Macro expansion trace captured during parse().
+    std::vector<MacroDefinition> macroDefinitions;
+    std::vector<MacroExpansion> macroExpansions;
 
     friend class TProgram;
 

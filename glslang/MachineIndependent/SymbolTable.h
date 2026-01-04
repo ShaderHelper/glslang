@@ -227,6 +227,7 @@ struct TParameter {
     TString *name;
     TType* type;
     TIntermTyped* defaultValue;
+    TSourceLoc loc;
     TParameter& copyParam(const TParameter& param)
     {
         if (param.name)
@@ -351,6 +352,9 @@ public:
 
     void setExport() { linkType = ELinkExport; }
     TLinkType getLinkType() const { return linkType; }
+
+    TSourceLoc loc;
+    TSourceLoc startLoc;
 
 protected:
     explicit TFunction(const TFunction&);

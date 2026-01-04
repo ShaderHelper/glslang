@@ -181,7 +181,7 @@ public:
     // Call allocate() to actually acquire memory.  Returns nullptr if no memory
     // available, otherwise a properly aligned pointer to 'numBytes' of memory.
     //
-    GLSLANG_EXPORT_FOR_TESTS
+    GLSLANG_EXPORT
     void* allocate(size_t numBytes);
 
     //
@@ -258,8 +258,12 @@ private:
 // different times.  But a simple use is to have a global pop
 // with everyone using the same global allocator.
 //
-GLSLANG_EXPORT_FOR_TESTS
+// NOTE: shaderc may build glslang as a shared library and consume parts of the
+// AST/IR externally. In that configuration glslang hides symbol visibility by
+// default, so allocator entry points must be explicitly exported.
+GLSLANG_EXPORT
 extern TPoolAllocator& GetThreadPoolAllocator();
+GLSLANG_EXPORT
 void SetThreadPoolAllocator(TPoolAllocator* poolAllocator);
 
 //

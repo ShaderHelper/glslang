@@ -1336,8 +1336,8 @@ TIntermAggregate* TParseContext::handleFunctionDefinition(const TSourceLoc& loc,
 
                 // Add the parameter to the HIL
                 paramNodes = intermediate.growAggregate(paramNodes,
-                                                        intermediate.addSymbol(*variable, loc),
-                                                        loc);
+                                                        intermediate.addSymbol(*variable, param.loc),
+                                                        param.loc);
             }
         } else
             paramNodes = intermediate.growAggregate(paramNodes, intermediate.addSymbol(*param.type, loc), loc);
@@ -8539,16 +8539,16 @@ TIntermTyped* TParseContext::vkRelaxedRemapFunctionCall(const TSourceLoc& loc, T
 
 // When a declaration includes a type, but not a variable name, it can be used
 // to establish defaults.
-void TParseContext::declareTypeDefaults(const TSourceLoc& loc, const TPublicType& publicType)
+TIntermNode* TParseContext::declareTypeDefaults(const TSourceLoc& loc, const TPublicType& publicType)
 {
     if (publicType.basicType == EbtAtomicUint && publicType.qualifier.hasBinding()) {
         if (publicType.qualifier.layoutBinding >= (unsigned int)resources.maxAtomicCounterBindings) {
             error(loc, "atomic_uint binding is too large", "binding", "");
-            return;
+            return nullptr;
         }
         if (publicType.qualifier.hasOffset())
             atomicUintOffsets[publicType.qualifier.layoutBinding] = publicType.qualifier.layoutOffset;
-        return;
+        return nullptr;
     }
 
     if (publicType.arraySizes) {
@@ -8557,6 +8557,13 @@ void TParseContext::declareTypeDefaults(const TSourceLoc& loc, const TPublicType
 
     if (publicType.qualifier.hasLayout() && !publicType.qualifier.hasBufferReference())
         warn(loc, "useless application of layout qualifier", "layout", "");
+
+    if (publicType.userDef)
+	{
+		return intermediate.addUnaryNode(EOpDeclare, intermediate.addSymbol(*publicType.userDef, loc), loc);
+	}
+
+    return nullptr;
 }
 
 void TParseContext::typeParametersCheck(const TSourceLoc& loc, const TPublicType& publicType)

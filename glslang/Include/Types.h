@@ -502,7 +502,7 @@ enum TShaderInterface
     EsiCount
 };
 
-class TQualifier {
+class GLSLANG_EXPORT TQualifier {
 public:
     static const int layoutNotSet = -1;
 
@@ -1640,6 +1640,7 @@ public:
                             }
     // for turning a TPublicType into a TType, using a shallow copy
     explicit TType(const TPublicType& p) :
+                            loc(p.loc),
                             basicType(p.basicType),
                             vectorSize(p.vectorSize), matrixCols(p.matrixCols), matrixRows(p.matrixRows), vector1(false), coopmatNV(p.coopmatNV), coopmatKHR(p.coopmatKHR), coopmatKHRuse(0), coopmatKHRUseValid(false), coopvecNV(p.coopvecNV),
                             tileAttachmentQCOM(p.tileAttachmentQCOM), tensorRankARM(p.tensorRankARM), arraySizes(p.arraySizes), structure(nullptr), fieldName(nullptr), typeName(nullptr), typeParameters(p.typeParameters),
@@ -1799,6 +1800,9 @@ public:
     // the instances are sharing the same pool.
     void shallowCopy(const TType& copyOf)
     {
+        loc = copyOf.loc;
+        startLoc = copyOf.startLoc;
+        endLoc = copyOf.endLoc;
         basicType = copyOf.basicType;
         sampler = copyOf.sampler;
         qualifier = copyOf.qualifier;
@@ -2986,6 +2990,10 @@ public:
     }
 
     const TSpirvType& getSpirvType() const { assert(spirvType); return *spirvType; }
+
+    TSourceLoc loc{};
+    TSourceLoc startLoc{};
+    TSourceLoc endLoc{};
 
 protected:
     // Require consumer to pick between deep copy and shallow copy.

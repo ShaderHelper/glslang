@@ -473,11 +473,9 @@ function_call_or_method
 function_call_generic
     : function_call_header_with_parameters RIGHT_PAREN {
         $$ = $1;
-        $$.loc = $2.loc;
     }
     | function_call_header_no_parameters RIGHT_PAREN {
         $$ = $1;
-        $$.loc = $2.loc;
     }
     ;
 
@@ -885,14 +883,14 @@ constant_expression
 declaration
     : function_prototype SEMICOLON {
         parseContext.handleFunctionDeclarator($1.loc, *$1.function, true /* prototype */);
-        $$ = 0;
+        $$ = $1.intermNode;
         // TODO: 4.0 functionality: subroutines: make the identifier a user type for this signature
     }
     | spirv_instruction_qualifier function_prototype SEMICOLON {
         parseContext.requireExtensions($2.loc, 1, &E_GL_EXT_spirv_intrinsics, "SPIR-V instruction qualifier");
         $2.function->setSpirvInstruction(*$1); // Attach SPIR-V intruction qualifier
         parseContext.handleFunctionDeclarator($2.loc, *$2.function, true /* prototype */);
-        $$ = 0;
+        $$ = $2.intermNode;
         // TODO: 4.0 functionality: subroutines: make the identifier a user type for this signature
     }
     | spirv_execution_mode_qualifier SEMICOLON {
@@ -959,12 +957,12 @@ function_prototype
     : function_declarator RIGHT_PAREN  {
         $$.function = $1;
         if (parseContext.compileOnly) $$.function->setExport();
-        $$.loc = $2.loc;
+        $$.loc = $$.function->loc;
     }
     | function_declarator RIGHT_PAREN attribute {
         $$.function = $1;
         if (parseContext.compileOnly) $$.function->setExport();
-        $$.loc = $2.loc;
+        $$.loc = $$.function->loc;
         const char * extensions[2] = { E_GL_EXT_subgroup_uniform_control_flow, E_GL_EXT_maximal_reconvergence };
         parseContext.requireExtensions($2.loc, 2, extensions, "attribute");
         parseContext.handleFunctionAttributes($2.loc, *$3);
@@ -972,7 +970,7 @@ function_prototype
     | attribute function_declarator RIGHT_PAREN {
         $$.function = $2;
         if (parseContext.compileOnly) $$.function->setExport();
-        $$.loc = $3.loc;
+        $$.loc = $$.function->loc;
         const char * extensions[2] = { E_GL_EXT_subgroup_uniform_control_flow, E_GL_EXT_maximal_reconvergence };
         parseContext.requireExtensions($3.loc, 2, extensions, "attribute");
         parseContext.handleFunctionAttributes($3.loc, *$1);
@@ -980,7 +978,7 @@ function_prototype
     | attribute function_declarator RIGHT_PAREN attribute {
         $$.function = $2;
         if (parseContext.compileOnly) $$.function->setExport();
-        $$.loc = $3.loc;
+        $$.loc = $$.function->loc;
         const char * extensions[2] = { E_GL_EXT_subgroup_uniform_control_flow, E_GL_EXT_maximal_reconvergence };
         parseContext.requireExtensions($3.loc, 2, extensions, "attribute");
         parseContext.handleFunctionAttributes($3.loc, *$1);
@@ -1056,6 +1054,8 @@ function_header
 
         // Make the function
         function = new TFunction($2.string, type);
+        function->loc = $2.loc;
+        function->startLoc = $1.loc;
         $$ = function;
     }
     ;
@@ -1073,7 +1073,7 @@ parameter_declarator
         }
         parseContext.reservedErrorCheck($2.loc, *$2.string);
 
-        TParameter param = {$2.string, new TType($1), {}};
+        TParameter param = {$2.string, new TType($1), {}, $2.loc};
         $$.loc = $2.loc;
         $$.param = param;
     }
@@ -1091,13 +1091,14 @@ parameter_declarator
         parseContext.arraySizeRequiredCheck($3.loc, *$3.arraySizes);
         parseContext.reservedErrorCheck($2.loc, *$2.string);
 
-        TParameter param = { $2.string, type, {} };
+        TParameter param = { $2.string, type, {}, $2.loc};
 
         $$.loc = $2.loc;
         $$.param = param;
     }
     | type_specifier IDENTIFIER EQUAL initializer {
         TParameter param = parseContext.getParamWithDefault($1, $2.string, $4, $3.loc);
+        param.loc = $2.loc;
         $$.loc = $2.loc;
         $$.param = param;
     }
@@ -1185,8 +1186,7 @@ init_declarator_list
 single_declaration
     : fully_specified_type {
         $$.type = $1;
-        $$.intermNode = 0;
-        parseContext.declareTypeDefaults($$.loc, $$.type);
+        $$.intermNode = parseContext.declareTypeDefaults($1.loc, $$.type);
     }
     | fully_specified_type IDENTIFIER {
         $$.type = $1;
@@ -1209,6 +1209,7 @@ single_declaration
         TIntermNode* declNode = parseContext.declareVariable($2.loc, *$2.string, $1, 0, $4);
         $$.intermNode = parseContext.intermediate.growAggregate(nullptr, declNode, $2.loc);
     }
+    ;
 
 // Grammar Note:  No 'enum', or 'typedef'.
 
@@ -3706,6 +3707,9 @@ struct_specifier
     : STRUCT IDENTIFIER LEFT_BRACE { parseContext.nestedStructCheck($1.loc); } struct_declaration_list RIGHT_BRACE {
 
         TType* structure = new TType($5, *$2.string);
+        structure->loc = $2.loc;
+        structure->startLoc = $1.loc;
+        structure->endLoc = $6.loc;
         parseContext.structArrayCheck($2.loc, *structure);
 
         TVariable* userTypeDef = new TVariable($2.string, *structure, true);
@@ -3715,13 +3719,16 @@ struct_specifier
                  && structure->containsOpaque())
             parseContext.relaxedSymbols.push_back(structure->getTypeName());
 
-        $$.init($1.loc);
+        $$.init($2.loc);
         $$.basicType = EbtStruct;
         $$.userDef = structure;
         --parseContext.structNestingLevel;
     }
     | STRUCT LEFT_BRACE { parseContext.nestedStructCheck($1.loc); } struct_declaration_list RIGHT_BRACE {
         TType* structure = new TType($4, TString(""));
+        structure->loc = $1.loc;
+        structure->startLoc = $1.loc;
+        structure->endLoc = $5.loc;
         $$.init($1.loc);
         $$.basicType = EbtStruct;
         $$.userDef = structure;
@@ -3742,6 +3749,9 @@ struct_declaration_list
             }
             $$->push_back((*$2)[i]);
         }
+    }
+    | error {
+        $$ = new TTypeList;
     }
     ;
 
@@ -3860,6 +3870,9 @@ declaration_statement
 statement
     : compound_statement  { $$ = $1; }
     | simple_statement    { $$ = $1; }
+    | error {
+        $$ = 0;
+    }
     ;
 
 // Grammar Note:  labeled statements for switch statements only; 'goto' is not supported.
@@ -3884,7 +3897,11 @@ demote_statement
     ;
 
 compound_statement
-    : LEFT_BRACE RIGHT_BRACE { $$ = 0; }
+    : LEFT_BRACE RIGHT_BRACE {
+        $$ = parseContext.intermediate.makeAggregate($1.loc);
+        $$->getAsAggregate()->setOperator(parseContext.intermediate.getDebugInfo() ? EOpScope : EOpSequence);
+        $$->getAsAggregate()->setEndLoc($2.loc);
+    }
     | LEFT_BRACE {
         parseContext.symbolTable.push();
         ++parseContext.statementNestingLevel;
@@ -3894,11 +3911,24 @@ compound_statement
         --parseContext.statementNestingLevel;
     }
       RIGHT_BRACE {
-        if ($3 && $3->getAsAggregate()) {
-            $3->getAsAggregate()->setOperator(parseContext.intermediate.getDebugInfo() ? EOpScope : EOpSequence);
-            $3->getAsAggregate()->setEndLoc($5.loc);
+        if ($3) {
+            if($3->getAsAggregate()) 
+            {
+                $3->getAsAggregate()->setOperator(parseContext.intermediate.getDebugInfo() ? EOpScope : EOpSequence);
+                $3->getAsAggregate()->setLoc($1.loc);
+                $3->getAsAggregate()->setStartLoc($1.loc);
+                $3->getAsAggregate()->setEndLoc($5.loc);
+            }
+            $$ = $3;
         }
-        $$ = $3;
+        else
+        {
+            $$ = parseContext.intermediate.makeAggregate($1.loc);
+            $$->getAsAggregate()->setOperator(parseContext.intermediate.getDebugInfo() ? EOpScope : EOpSequence);
+            $$->getAsAggregate()->setStartLoc($1.loc);
+            $$->getAsAggregate()->setEndLoc($5.loc);
+        }
+        
     }
     ;
 
@@ -3930,14 +3960,29 @@ statement_scoped
 compound_statement_no_new_scope
     // Statement that doesn't create a new scope, for selection_statement, iteration_statement
     : LEFT_BRACE RIGHT_BRACE {
-        $$ = 0;
+        $$ = parseContext.intermediate.makeAggregate($1.loc);
+        $$->getAsAggregate()->setOperator(EOpSequence);
+        $$->getAsAggregate()->setStartLoc($1.loc);
+        $$->getAsAggregate()->setEndLoc($2.loc);
     }
     | LEFT_BRACE statement_list RIGHT_BRACE {
-        if ($2 && $2->getAsAggregate()) {
-            $2->getAsAggregate()->setOperator(EOpSequence);
-            $2->getAsAggregate()->setEndLoc($3.loc);
+        if ($2)
+        {
+            if($2->getAsAggregate()) 
+            {
+                $2->getAsAggregate()->setOperator(EOpSequence);
+                $2->getAsAggregate()->setStartLoc($1.loc);
+                $2->getAsAggregate()->setEndLoc($3.loc);
+            }
+            $$ = $2;
         }
-        $$ = $2;
+        else
+        {
+            $$ = parseContext.intermediate.makeAggregate($1.loc);
+            $$->getAsAggregate()->setOperator(EOpSequence);
+            $$->getAsAggregate()->setStartLoc($1.loc);
+            $$->getAsAggregate()->setEndLoc($3.loc);
+        }
     }
     ;
 
@@ -4096,6 +4141,10 @@ iteration_statement_nonattributed
         if (parseContext.intermediate.getDebugInfo()) {
             $$ = parseContext.intermediate.makeAggregate($$, $1.loc);
             $$->getAsAggregate()->setOperator(EOpScope);
+            if ($6 && $6->getAsAggregate())
+            {
+                $$->getAsAggregate()->setEndLoc($6->getAsAggregate()->getEndLoc());
+            }
         }
         --parseContext.loopNestingLevel;
         --parseContext.statementNestingLevel;
@@ -4115,8 +4164,9 @@ iteration_statement_nonattributed
 
         $$ = parseContext.intermediate.addLoop($3, $6, 0, false, $4.loc);
         if (parseContext.intermediate.getDebugInfo()) {
-            $$ = parseContext.intermediate.makeAggregate($$, $4.loc);
+            $$ = parseContext.intermediate.makeAggregate($$, $1.loc);
             $$->getAsAggregate()->setOperator(EOpScope);
+            $$->getAsAggregate()->setEndLoc($4.loc);
         }
         parseContext.symbolTable.pop(&parseContext.defaultPrecision[0]);
         --parseContext.loopNestingLevel;
@@ -4137,6 +4187,10 @@ iteration_statement_nonattributed
             parseContext.inductiveLoopCheck($1.loc, $4, forLoop);
         $$ = parseContext.intermediate.growAggregate($$, forLoop, $1.loc);
         $$->getAsAggregate()->setOperator(parseContext.intermediate.getDebugInfo() ? EOpScope : EOpSequence);
+        if ($7 && $7->getAsAggregate())
+        {
+            $$->getAsAggregate()->setEndLoc($7->getAsAggregate()->getEndLoc());
+        }
         --parseContext.loopNestingLevel;
         --parseContext.statementNestingLevel;
         --parseContext.controlFlowNestingLevel;
@@ -4238,6 +4292,9 @@ external_declaration
         parseContext.profileRequires($1.loc, ~EEsProfile, 460, nullptr, "extraneous semicolon");
         $$ = nullptr;
     }
+    | error {
+        $$ = 0;
+    }
     ;
 
 function_definition
@@ -4262,6 +4319,11 @@ function_definition
         $$->getAsAggregate()->setLinkType($1.function->getLinkType());
         parseContext.intermediate.setAggregateOperator($$, EOpFunction, $1.function->getType(), $1.loc);
         $$->getAsAggregate()->setName($1.function->getMangledName().c_str());
+        $$->getAsAggregate()->setStartLoc($1.function->startLoc);
+        if($3 && $3->getAsAggregate())
+        {
+            $$->getAsAggregate()->setEndLoc($3->getAsAggregate()->getEndLoc());
+        }
 
         // store the pragma information for debug and optimize and other vendor specific
         // information. This information can be queried from the parse tree
@@ -4279,6 +4341,19 @@ function_definition
             parseContext.symbolTable.pop(&parseContext.defaultPrecision[0]);
             --parseContext.statementNestingLevel;
         }
+    }
+    | error compound_statement_no_new_scope {
+        $$ = parseContext.intermediate.makeAggregate($2);
+        $$->getAsAggregate()->setOperator(EOpFunction);
+        if($2 && $2->getAsAggregate())
+        {
+            $$->getAsAggregate()->setStartLoc($2->getAsAggregate()->getStartLoc());
+            $$->getAsAggregate()->setEndLoc($2->getAsAggregate()->getEndLoc());
+        }
+        $$->getAsAggregate()->setOptimize(parseContext.contextPragma.optimize);
+        $$->getAsAggregate()->setDebug(parseContext.contextPragma.debug);
+        $$->getAsAggregate()->setPragmaTable(parseContext.contextPragma.pragmaTable);
+        parseContext.currentFunctionType = nullptr;
     }
     ;
 
