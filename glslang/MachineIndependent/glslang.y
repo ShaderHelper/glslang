@@ -4239,7 +4239,7 @@ jump_statement
     }
     | RETURN SEMICOLON {
         $$ = parseContext.intermediate.addBranch(EOpReturn, $1.loc);
-        if (parseContext.currentFunctionType->getBasicType() != EbtVoid)
+        if (parseContext.currentFunctionType && parseContext.currentFunctionType->getBasicType() != EbtVoid)
             parseContext.error($1.loc, "non-void function must return a value", "return", "");
         if (parseContext.inMain)
             parseContext.postEntryPointReturn = true;

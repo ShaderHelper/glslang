@@ -489,7 +489,7 @@ TIntermTyped* TIntermediate::addBuiltInFunctionCall(const TSourceLoc& loc, TOper
                 return folded;
         }
 
-        return addUnaryNode(op, child, child->getLoc(), returnType);
+        return addUnaryNode(op, child, loc, returnType);
     } else {
         // setAggregateOperater() calls fold() for constant folding
         TIntermTyped* node = setAggregateOperator(childNode, op, returnType, loc);

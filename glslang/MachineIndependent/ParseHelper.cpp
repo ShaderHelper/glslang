@@ -2334,6 +2334,12 @@ void TParseContext::computeBuiltinPrecisions(TIntermTyped& node, const TFunction
 
 TIntermNode* TParseContext::handleReturnValue(const TSourceLoc& loc, TIntermTyped* value)
 {
+    //Error recovery
+    if(!currentFunctionType)
+    {
+        return intermediate.addBranch(EOpReturn, value, loc);
+    }
+
     storage16BitAssignmentCheck(loc, value->getType(), "return");
 
     functionReturnsValue = true;

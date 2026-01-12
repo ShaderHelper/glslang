@@ -12654,7 +12654,7 @@ yyreduce:
 #line 4240 "MachineIndependent\\glslang.y"
                        {
         (yyval.interm.intermNode) = parseContext.intermediate.addBranch(EOpReturn, (yyvsp[-1].lex).loc);
-        if (parseContext.currentFunctionType->getBasicType() != EbtVoid)
+        if (parseContext.currentFunctionType && parseContext.currentFunctionType->getBasicType() != EbtVoid)
             parseContext.error((yyvsp[-1].lex).loc, "non-void function must return a value", "return", "");
         if (parseContext.inMain)
             parseContext.postEntryPointReturn = true;
