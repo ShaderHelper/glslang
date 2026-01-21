@@ -297,6 +297,14 @@ int TPpContext::CPPelse(int matchelse, TPpToken* ppToken)
 {
     inElseSkip = true;
     int depth = 0;
+    
+    // Record start of inactive region (next line after the directive that caused skipping)
+    TSourceLoc inactiveStartLoc = ppToken->loc;
+    int inactiveStartLine = inactiveStartLoc.line - 1;
+    TString inactiveFileName;
+    if (inactiveStartLoc.name)
+        inactiveFileName = *inactiveStartLoc.name;
+    
     int token = scanToken(ppToken);
 
     while (token != EndOfInput) {
@@ -330,6 +338,15 @@ int TPpContext::CPPelse(int matchelse, TPpToken* ppToken)
             --elsetracker;
             if (depth == 0) {
                 // found the #endif we are looking for
+                // Record inactive region: from start to the line before this #endif
+                int inactiveEndLine = ppToken->loc.line - 1;
+                if (inactiveEndLine >= inactiveStartLine) {
+                    TInactiveRegion region;
+                    region.startLine = inactiveStartLine;
+                    region.endLine = inactiveEndLine;
+                    region.fileName = inactiveFileName;
+                    inactiveRegions.push_back(region);
+                }
                 if (ifdepth > 0)
                     --ifdepth;
                 break;
@@ -341,10 +358,28 @@ int TPpContext::CPPelse(int matchelse, TPpToken* ppToken)
                 elseSeen[elsetracker] = true;
                 token = extraTokenCheck(nextAtom, ppToken, scanToken(ppToken));
                 // found the #else we are looking for
+                // Record inactive region: from start to the line before this #else
+                int inactiveEndLine = ppToken->loc.line - 1;
+                if (inactiveEndLine >= inactiveStartLine) {
+                    TInactiveRegion region;
+                    region.startLine = inactiveStartLine;
+                    region.endLine = inactiveEndLine;
+                    region.fileName = inactiveFileName;
+                    inactiveRegions.push_back(region);
+                }
                 break;
             } else if (nextAtom == PpAtomElif) {
                 if (elseSeen[elsetracker])
                     parseContext.ppError(ppToken->loc, "#elif after #else", "#elif", "");
+                // Record inactive region: from start to the line before this #elif
+                int inactiveEndLine = ppToken->loc.line - 1;
+                if (inactiveEndLine >= inactiveStartLine) {
+                    TInactiveRegion region;
+                    region.startLine = inactiveStartLine;
+                    region.endLine = inactiveEndLine;
+                    region.fileName = inactiveFileName;
+                    inactiveRegions.push_back(region);
+                }
                 /* we decrement ifdepth here, because CPPif will increment
                 * it and we really want to leave it alone */
                 if (ifdepth > 0) {

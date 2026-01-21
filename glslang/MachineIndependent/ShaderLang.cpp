@@ -818,7 +818,8 @@ bool ProcessDeferred(
     const TEnvironment* environment = nullptr,  // optional way of fully setting all versions, overriding the above
     bool compileOnly = false,
     std::vector<TShader::MacroDefinition>* outMacroDefinitions = nullptr,
-    std::vector<TShader::MacroExpansion>* outMacroExpansions = nullptr)
+    std::vector<TShader::MacroExpansion>* outMacroExpansions = nullptr,
+    std::vector<TShader::InactiveRegion>* outInactiveRegions = nullptr)
 {
     // This must be undone (.pop()) by the caller, after it finishes consuming the created tree.
     GetThreadPoolAllocator().push();
@@ -1043,6 +1044,21 @@ bool ProcessDeferred(
             if (e.callLoc.name)
                 out.call.file = e.callLoc.name->c_str();
             outMacroExpansions->push_back(std::move(out));
+        }
+    }
+
+    // Export inactive regions for tooling (captured during preprocessing).
+    if (outInactiveRegions) {
+        outInactiveRegions->clear();
+        const auto& regions = ppContext.getInactiveRegions();
+        outInactiveRegions->reserve(regions.size());
+        for (const auto& r : regions) {
+            TShader::InactiveRegion out;
+            out.startLine = r.startLine;
+            out.endLine = r.endLine;
+            if (!r.fileName.empty())
+                out.file = r.fileName.c_str();
+            outInactiveRegions->push_back(std::move(out));
         }
     }
 
@@ -1355,14 +1371,15 @@ bool CompileDeferred(
     TEnvironment* environment = nullptr,
     bool compileOnly = false,
     std::vector<TShader::MacroDefinition>* outMacroDefinitions = nullptr,
-    std::vector<TShader::MacroExpansion>* outMacroExpansions = nullptr)
+    std::vector<TShader::MacroExpansion>* outMacroExpansions = nullptr,
+    std::vector<TShader::InactiveRegion>* outInactiveRegions = nullptr)
 {
     DoFullParse parser;
     return ProcessDeferred(compiler, shaderStrings, numStrings, inputLengths, stringNames,
                            preamble, optLevel, resources, defaultVersion,
                            defaultProfile, forceDefaultVersionAndProfile, overrideVersion,
                            forwardCompatible, messages, intermediate, parser,
-                           true, includer, sourceEntryPointName, environment, compileOnly, outMacroDefinitions, outMacroExpansions);
+                           true, includer, sourceEntryPointName, environment, compileOnly, outMacroDefinitions, outMacroExpansions, outInactiveRegions);
 }
 
 } // end anonymous namespace for local functions
@@ -1934,7 +1951,7 @@ bool TShader::parse(const TBuiltInResource* builtInResources, int defaultVersion
                            preamble, EShOptNone, builtInResources, defaultVersion,
                            defaultProfile, forceDefaultVersionAndProfile, overrideVersion,
                            forwardCompatible, messages, *intermediate, includer, sourceEntryPointName,
-                           &environment, compileOnly, &macroDefinitions, &macroExpansions);
+                           &environment, compileOnly, &macroDefinitions, &macroExpansions, &inactiveRegions);
 }
 
 // Fill in a string with the result of preprocessing ShaderStrings
