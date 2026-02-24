@@ -529,9 +529,11 @@ TIntermTyped* TParseContext::handleVariable(const TSourceLoc& loc, TSymbol* symb
             }
         }
 
-        if (variable->getType().getQualifier().isFrontEndConstant())
+        if (variable->getType().getQualifier().isFrontEndConstant()) {
             node = intermediate.addConstantUnion(variable->getConstArray(), variable->getType(), loc);
-        else
+            // Preserve the original variable info for LSP symbol lookups
+            node->getAsConstantUnion()->setOriginalVariable(variable->getName(), variable->getUniqueId());
+        } else
             node = intermediate.addSymbol(*variable, loc);
     }
 

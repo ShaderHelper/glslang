@@ -1180,6 +1180,14 @@ int TPpContext::tMacroInput::scan(TPpToken* ppToken)
         token = mac->body.getToken(pp->parseContext, ppToken);
     } while (token == ' ');  // handle white space in macro
 
+    // Override the token's source location from the macro definition site
+    // to the macro call site, so that debug info (e.g. DebugLine) points to
+    // where the macro was invoked rather than where it was defined.
+    if (token != EndOfInput && expansionId >= 0 &&
+        expansionId < (int)pp->macroExpansions.size()) {
+        ppToken->loc = pp->macroExpansions[expansionId].callLoc;
+    }
+
     // Hash operators basically turn off a round of macro substitution
     // (the round done on the argument before the round done on the RHS of the
     // macro definition):
