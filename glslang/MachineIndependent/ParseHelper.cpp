@@ -1355,6 +1355,38 @@ TIntermAggregate* TParseContext::handleFunctionDefinition(const TSourceLoc& loc,
 }
 
 //
+// Handle seeing a function prototype (forward declaration without body) in the grammar.
+// Creates an AST node with EOpFunctionPrototype so LSP tools can discover it.
+//
+TIntermAggregate* TParseContext::handleFunctionPrototype(const TSourceLoc& loc, TFunction& function)
+{
+    // Build parameter list as EOpParameters aggregate, mirroring handleFunctionDefinition
+    TIntermAggregate* paramNodes = new TIntermAggregate;
+    for (int i = 0; i < function.getParamCount(); i++) {
+        TParameter& param = function[i];
+        if (param.name != nullptr) {
+            TVariable variable(param.name, *param.type);
+            paramNodes = intermediate.growAggregate(paramNodes,
+                                                    intermediate.addSymbol(variable, param.loc),
+                                                    param.loc);
+        } else {
+            paramNodes = intermediate.growAggregate(paramNodes,
+                                                    intermediate.addSymbol(*param.type, loc),
+                                                    loc);
+        }
+    }
+    paramNodes->setLinkType(function.getLinkType());
+    intermediate.setAggregateOperator(paramNodes, EOpParameters, TType(EbtVoid), loc);
+
+    // Wrap in EOpFunctionPrototype node
+    TIntermAggregate* protoNode = intermediate.makeAggregate(paramNodes, loc);
+    intermediate.setAggregateOperator(protoNode, EOpFunctionPrototype, function.getType(), loc);
+    protoNode->setName(function.getMangledName().c_str());
+
+    return protoNode;
+}
+
+//
 // Handle seeing function call syntax in the grammar, which could be any of
 //  - .length() method
 //  - constructor

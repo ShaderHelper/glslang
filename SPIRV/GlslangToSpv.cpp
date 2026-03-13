@@ -3195,6 +3195,9 @@ bool TGlslangToSpvTraverser::visitAggregate(glslang::TVisit visit, glslang::TInt
         // the body, so we still visited the function node's children, making this
         // child redundant.
         return false;
+    case glslang::EOpFunctionPrototype:
+        // Forward declarations produce no SPIR-V output; skip entirely.
+        return false;
     case glslang::EOpFunctionCall:
     {
         builder.setDebugSourceLocation(node->getLoc().line, node->getLoc().getFilename());
@@ -6575,7 +6578,7 @@ void TGlslangToSpvTraverser::makeGlobalInitializers(const glslang::TIntermSequen
     for (int i = 0; i < (int)initializers.size(); ++i) {
         glslang::TIntermAggregate* initializer = initializers[i]->getAsAggregate();
         if (initializer && initializer->getOp() != glslang::EOpFunction && initializer->getOp() !=
-            glslang::EOpLinkerObjects) {
+            glslang::EOpLinkerObjects && initializer->getOp() != glslang::EOpFunctionPrototype) {
 
             // We're on a top-level node that's not a function.  Treat as an initializer, whose
             // code goes into the beginning of the entry point.
@@ -6628,6 +6631,7 @@ void TGlslangToSpvTraverser::visitFunctions(const glslang::TIntermSequence& glsl
         glslang::TIntermAggregate* node = glslFunctions[f]->getAsAggregate();
         if (node && (node->getOp() == glslang::EOpFunction || node->getOp() == glslang::EOpLinkerObjects))
             node->traverse(this);
+        // Skip EOpFunctionPrototype nodes - they are forward declarations with no SPIR-V output
     }
 }
 

@@ -883,15 +883,13 @@ constant_expression
 declaration
     : function_prototype SEMICOLON {
         parseContext.handleFunctionDeclarator($1.loc, *$1.function, true /* prototype */);
-        $$ = $1.intermNode;
-        // TODO: 4.0 functionality: subroutines: make the identifier a user type for this signature
+        $$ = parseContext.handleFunctionPrototype($1.loc, *$1.function);
     }
     | spirv_instruction_qualifier function_prototype SEMICOLON {
         parseContext.requireExtensions($2.loc, 1, &E_GL_EXT_spirv_intrinsics, "SPIR-V instruction qualifier");
         $2.function->setSpirvInstruction(*$1); // Attach SPIR-V intruction qualifier
         parseContext.handleFunctionDeclarator($2.loc, *$2.function, true /* prototype */);
-        $$ = $2.intermNode;
-        // TODO: 4.0 functionality: subroutines: make the identifier a user type for this signature
+        $$ = parseContext.handleFunctionPrototype($2.loc, *$2.function);
     }
     | spirv_execution_mode_qualifier SEMICOLON {
         parseContext.globalCheck($2.loc, "SPIR-V execution mode qualifier");

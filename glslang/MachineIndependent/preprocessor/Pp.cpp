@@ -153,15 +153,6 @@ int TPpContext::CPPdefine(TPpToken* ppToken)
         return token;
     }
 
-    // Record the macro definition for tooling before we potentially compare/replace it.
-    {
-        TMacroDefinition def;
-        def.name = atomStrings.getString(defAtom);
-        def.defineLoc = defineLoc;
-        def.functionLike = mac.functionLike != 0;
-        macroDefinitions.push_back(def);
-    }
-
     int pendingPoundSymbols = 0;
     TPpToken savePound;
     // record the definition of the macro
@@ -213,6 +204,26 @@ int TPpContext::CPPdefine(TPpToken* ppToken)
     }
     if (pendingPoundSymbols != 0) {
         parseContext.ppError(ppToken->loc, "Macro ended with incomplete '#' paste/stringify operators", "#", "");
+    }
+
+    // Record the macro definition for tooling before we potentially compare/replace it.
+    // (recorded after body parsing so we can walk the body to build bodyText)
+    {
+        TMacroDefinition def;
+        def.name = atomStrings.getString(defAtom);
+        def.defineLoc = defineLoc;
+        def.functionLike = mac.functionLike != 0;
+        // Build raw body text from the token stream
+        mac.body.reset();
+        TPpToken bodyTok;
+        int bodyTokVal;
+        while ((bodyTokVal = mac.body.getToken(parseContext, &bodyTok)) != EndOfInput) {
+            if (bodyTokVal == ' ')
+                continue;
+            def.bodyText += tokenToText(bodyTokVal, bodyTok);
+        }
+        mac.body.reset();
+        macroDefinitions.push_back(def);
     }
 
     // check for duplicate definition
@@ -1444,6 +1455,43 @@ MacroExpandResult TPpContext::MacroExpand(TPpToken* ppToken, bool expandUndef, b
             in->expandedArgs[i] = PrescanMacroArg(*in->args[i], ppToken, newLineOkay);
     }
 
+    // Build one-level expanded text: walk the body, substituting parameter
+    // identifiers with the corresponding (unexpanded) argument text.
+    {
+        TString expanded;
+        macro->body.reset();
+        TPpToken bodyTok;
+        int tok;
+        while ((tok = macro->body.getToken(parseContext, &bodyTok)) != EndOfInput) {
+            if (tok == ' ')
+                continue;
+            if (tok == PpAtomIdentifier && macro->functionLike) {
+                bool isParam = false;
+                for (size_t i = 0; i < macro->args.size(); i++) {
+                    if (strcmp(atomStrings.getString(macro->args[i]), bodyTok.name) == 0) {
+                        in->args[i]->reset();
+                        TPpToken argTok;
+                        TString argText;
+                        int aTok;
+                        while ((aTok = in->args[i]->getToken(parseContext, &argTok)) != EndOfInput) {
+                            argText += tokenToText(aTok, argTok);
+                        }
+                        in->args[i]->reset();
+                        expanded += argText;
+                        isParam = true;
+                        break;
+                    }
+                }
+                if (!isParam)
+                    expanded += bodyTok.name;
+            } else {
+                expanded += tokenToText(tok, bodyTok);
+            }
+        }
+        macro->body.reset();
+        expansion.expandedText = expanded;
+    }
+
     in->expansionId = (int)macroExpansions.size();
     macroExpansions.push_back(expansion);
 
@@ -1452,6 +1500,53 @@ MacroExpandResult TPpContext::MacroExpand(TPpToken* ppToken, bool expandUndef, b
     macro->body.reset();
 
     return MacroExpandStarted;
+}
+
+// Static helper: convert a token + TPpToken to its text representation.
+TString TPpContext::tokenToText(int tok, const TPpToken& ppTok)
+{
+    // Single-character tokens: the token value IS the character
+    if (tok > 0 && tok <= PpAtomMaxSingle) {
+        return TString(1, (char)tok);
+    }
+    switch (tok) {
+    case PpAtomIdentifier:
+    case PpAtomConstInt:
+    case PpAtomConstUint:
+    case PpAtomConstInt64:
+    case PpAtomConstUint64:
+    case PpAtomConstInt16:
+    case PpAtomConstUint16:
+    case PpAtomConstFloat:
+    case PpAtomConstDouble:
+    case PpAtomConstFloat16:
+    case PpAtomConstString:
+        return TString(ppTok.name);
+    case PPAtomAddAssign:  return TString("+=");
+    case PPAtomSubAssign:  return TString("-=");
+    case PPAtomMulAssign:  return TString("*=");
+    case PPAtomDivAssign:  return TString("/=");
+    case PPAtomModAssign:  return TString("%=");
+    case PpAtomRight:      return TString(">>");
+    case PpAtomLeft:       return TString("<<");
+    case PpAtomRightAssign:return TString(">>=");
+    case PpAtomLeftAssign: return TString("<<=");
+    case PpAtomAndAssign:  return TString("&=");
+    case PpAtomOrAssign:   return TString("|=");
+    case PpAtomXorAssign:  return TString("^=");
+    case PpAtomAnd:        return TString("&&");
+    case PpAtomOr:         return TString("||");
+    case PpAtomXor:        return TString("^^");
+    case PpAtomEQ:         return TString("==");
+    case PpAtomNE:         return TString("!=");
+    case PpAtomGE:         return TString(">=");
+    case PpAtomLE:         return TString("<=");
+    case PpAtomDecrement:  return TString("--");
+    case PpAtomIncrement:  return TString("++");
+    case PpAtomColonColon: return TString("::");
+    case PpAtomPaste:      return TString("##");
+    default:               return TString();
+    }
 }
 
 } // end namespace glslang

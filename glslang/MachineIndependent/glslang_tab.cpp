@@ -6736,20 +6736,18 @@ yyreduce:
 #line 884 "MachineIndependent\\glslang.y"
                                    {
         parseContext.handleFunctionDeclarator((yyvsp[-1].interm).loc, *(yyvsp[-1].interm).function, true /* prototype */);
-        (yyval.interm.intermNode) = (yyvsp[-1].interm).intermNode;
-        // TODO: 4.0 functionality: subroutines: make the identifier a user type for this signature
+        (yyval.interm.intermNode) = parseContext.handleFunctionPrototype((yyvsp[-1].interm).loc, *(yyvsp[-1].interm).function);
     }
 #line 6743 "MachineIndependent\\glslang_tab.cpp"
     break;
 
   case 95: /* declaration: spirv_instruction_qualifier function_prototype SEMICOLON  */
-#line 889 "MachineIndependent\\glslang.y"
+#line 888 "MachineIndependent\\glslang.y"
                                                                {
         parseContext.requireExtensions((yyvsp[-1].interm).loc, 1, &E_GL_EXT_spirv_intrinsics, "SPIR-V instruction qualifier");
         (yyvsp[-1].interm).function->setSpirvInstruction(*(yyvsp[-2].interm.spirvInst)); // Attach SPIR-V intruction qualifier
         parseContext.handleFunctionDeclarator((yyvsp[-1].interm).loc, *(yyvsp[-1].interm).function, true /* prototype */);
-        (yyval.interm.intermNode) = (yyvsp[-1].interm).intermNode;
-        // TODO: 4.0 functionality: subroutines: make the identifier a user type for this signature
+        (yyval.interm.intermNode) = parseContext.handleFunctionPrototype((yyvsp[-1].interm).loc, *(yyvsp[-1].interm).function);
     }
 #line 6755 "MachineIndependent\\glslang_tab.cpp"
     break;

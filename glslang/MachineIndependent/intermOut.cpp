@@ -533,6 +533,7 @@ bool TOutputTraverser::visitAggregate(TVisit /* visit */, TIntermAggregate* node
     case EOpLinkerObjects: out.debug << "Linker Objects\n"; return true;
     case EOpComma:         out.debug << "Comma";            break;
     case EOpFunction:      out.debug << "Function Definition: " << node->getName(); break;
+    case EOpFunctionPrototype: out.debug << "Function Prototype: " << node->getName(); break;
     case EOpFunctionCall:  out.debug << "Function Call: "       << node->getName(); break;
     case EOpParameters:    out.debug << "Function Parameters: ";                    break;
 

@@ -1022,6 +1022,7 @@ bool ProcessDeferred(
             TShader::MacroDefinition out;
             out.name = d.name.c_str();
             out.functionLike = d.functionLike;
+            out.bodyText = d.bodyText.c_str();
             out.define.string = d.defineLoc.string;
             out.define.line = d.defineLoc.line;
             out.define.column = d.defineLoc.column;
@@ -1038,6 +1039,7 @@ bool ProcessDeferred(
             TShader::MacroExpansion out;
             out.name = e.name.c_str();
             out.functionLike = e.functionLike;
+            out.expandedText = e.expandedText.c_str();
             out.call.string = e.callLoc.string;
             out.call.line = e.callLoc.line;
             out.call.column = e.callLoc.column;
