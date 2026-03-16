@@ -5067,6 +5067,13 @@ bool TGlslangToSpvTraverser::visitVariableDecl(glslang::TVisit visit, glslang::T
         builder.setDebugSourceLocation(node->getDeclSymbol()->getLoc().line, node->getDeclSymbol()->getLoc().getFilename());
         // We touch the symbol once here to create the debug info.
         getSymbolId(node->getDeclSymbol());
+
+        // For const variables, skip traversing the initNode. The const initializer
+        // is already handled as a pure SPIR-V constant in createSpvVariable() (via
+        // createConstVariable), which emits the correct DebugValue. Traversing the
+        // EOpAssign initNode would incorrectly generate an OpStore to a non-pointer.
+        if (node->getDeclSymbol()->getQualifier().isConstant())
+            return false;
     }
 
     return true;
