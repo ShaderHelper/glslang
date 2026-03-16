@@ -213,6 +213,17 @@ int TPpContext::CPPdefine(TPpToken* ppToken)
         def.name = atomStrings.getString(defAtom);
         def.defineLoc = defineLoc;
         def.functionLike = mac.functionLike != 0;
+        // Build fullName: name + parameter list for function-like macros
+        def.fullName = def.name;
+        if (def.functionLike) {
+            def.fullName += "(";
+            for (size_t i = 0; i < mac.args.size(); ++i) {
+                if (i > 0)
+                    def.fullName += ",";
+                def.fullName += atomStrings.getString(mac.args[i]);
+            }
+            def.fullName += ")";
+        }
         // Build raw body text from the token stream
         mac.body.reset();
         TPpToken bodyTok;
@@ -661,6 +672,12 @@ int TPpContext::evalToToken(int token, bool shortCircuit, int& res, bool& err, T
         if (err)
             break;
     }
+
+    // Accumulate fully-expanded token text for active macro expansions on the stack.
+    // This handles macro expansions in #if/#elif directives, which bypass tokenize()'s
+    // accumulation block (because readCPPline consumes tokens internally).
+    if (!err && token != '\n' && token != EndOfInput)
+        accumulateExpandedToken(token, *ppToken);
 
     return token;
 }
@@ -1455,43 +1472,6 @@ MacroExpandResult TPpContext::MacroExpand(TPpToken* ppToken, bool expandUndef, b
             in->expandedArgs[i] = PrescanMacroArg(*in->args[i], ppToken, newLineOkay);
     }
 
-    // Build one-level expanded text: walk the body, substituting parameter
-    // identifiers with the corresponding (unexpanded) argument text.
-    {
-        TString expanded;
-        macro->body.reset();
-        TPpToken bodyTok;
-        int tok;
-        while ((tok = macro->body.getToken(parseContext, &bodyTok)) != EndOfInput) {
-            if (tok == ' ')
-                continue;
-            if (tok == PpAtomIdentifier && macro->functionLike) {
-                bool isParam = false;
-                for (size_t i = 0; i < macro->args.size(); i++) {
-                    if (strcmp(atomStrings.getString(macro->args[i]), bodyTok.name) == 0) {
-                        in->args[i]->reset();
-                        TPpToken argTok;
-                        TString argText;
-                        int aTok;
-                        while ((aTok = in->args[i]->getToken(parseContext, &argTok)) != EndOfInput) {
-                            argText += tokenToText(aTok, argTok);
-                        }
-                        in->args[i]->reset();
-                        expanded += argText;
-                        isParam = true;
-                        break;
-                    }
-                }
-                if (!isParam)
-                    expanded += bodyTok.name;
-            } else {
-                expanded += tokenToText(tok, bodyTok);
-            }
-        }
-        macro->body.reset();
-        expansion.expandedText = expanded;
-    }
-
     in->expansionId = (int)macroExpansions.size();
     macroExpansions.push_back(expansion);
 
@@ -1500,6 +1480,27 @@ MacroExpandResult TPpContext::MacroExpand(TPpToken* ppToken, bool expandUndef, b
     macro->body.reset();
 
     return MacroExpandStarted;
+}
+
+// Accumulate token text into expandedText for all active macro expansions on the input stack.
+void TPpContext::accumulateExpandedToken(int token, const TPpToken& ppToken)
+{
+    TString text;
+    bool textBuilt = false;
+    int accumulated[64];
+    int numAccum = 0;
+    for (int i = (int)inputStack.size() - 1; i >= 0; --i) {
+        int expId = inputStack[i]->getMacroExpansionId();
+        if (expId < 0 || expId >= (int)macroExpansions.size())
+            continue;
+        bool dup = false;
+        for (int j = 0; j < numAccum; ++j)
+            if (accumulated[j] == expId) { dup = true; break; }
+        if (dup) continue;
+        if (numAccum < 64) accumulated[numAccum++] = expId;
+        if (!textBuilt) { text = tokenToText(token, ppToken); textBuilt = true; }
+        macroExpansions[expId].expandedText += text;
+    }
 }
 
 // Static helper: convert a token + TPpToken to its text representation.

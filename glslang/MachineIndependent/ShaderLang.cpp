@@ -1021,6 +1021,7 @@ bool ProcessDeferred(
         for (const auto& d : defs) {
             TShader::MacroDefinition out;
             out.name = d.name.c_str();
+            out.fullName = d.fullName.c_str();
             out.functionLike = d.functionLike;
             out.bodyText = d.bodyText.c_str();
             out.define.string = d.defineLoc.string;

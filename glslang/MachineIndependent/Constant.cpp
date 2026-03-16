@@ -359,6 +359,12 @@ TIntermTyped* TIntermConstantUnion::fold(TOperator op, const TIntermTyped* right
     TIntermConstantUnion *newNode = new TIntermConstantUnion(newConstArray, returnType);
     newNode->setLoc(getLoc());
 
+    // Propagate all originalVariable refs from both operands for LSP analysis.
+    if (hasOriginalVariable())
+        newNode->addOriginalVariables(getOriginalVariables());
+    if (rightNode->getAsConstantUnion() && rightNode->getAsConstantUnion()->hasOriginalVariable())
+        newNode->addOriginalVariables(rightNode->getAsConstantUnion()->getOriginalVariables());
+
     return newNode;
 }
 
@@ -847,6 +853,10 @@ TIntermTyped* TIntermConstantUnion::fold(TOperator op, const TType& returnType) 
     TIntermConstantUnion *newNode = new TIntermConstantUnion(newConstArray, returnType);
     newNode->getWritableType().getQualifier().storage = EvqConst;
     newNode->setLoc(getLoc());
+
+    // Propagate all originalVariable refs through unary constant folding for LSP analysis.
+    if (hasOriginalVariable())
+        newNode->addOriginalVariables(getOriginalVariables());
 
     return newNode;
 }

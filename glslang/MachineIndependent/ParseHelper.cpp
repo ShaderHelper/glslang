@@ -532,7 +532,7 @@ TIntermTyped* TParseContext::handleVariable(const TSourceLoc& loc, TSymbol* symb
         if (variable->getType().getQualifier().isFrontEndConstant()) {
             node = intermediate.addConstantUnion(variable->getConstArray(), variable->getType(), loc);
             // Preserve the original variable info for LSP symbol lookups
-            node->getAsConstantUnion()->setOriginalVariable(variable->getName(), variable->getUniqueId());
+            node->getAsConstantUnion()->addOriginalVariable(variable->getName(), variable->getUniqueId(), loc);
         } else
             node = intermediate.addSymbol(*variable, loc);
     }
@@ -9497,6 +9497,14 @@ TIntermNode* TParseContext::executeInitializer(const TSourceLoc& loc, TIntermTyp
             // Keep the subtree that computes the specialization constant with the variable.
             // Later, a symbol node will adopt the subtree from the variable.
             variable->setConstSubtree(initializer);
+        }
+
+        // Return the initializer so it is preserved as the initNode in TIntermVariableDecl.
+        // This allows LSP features to resolve folded const references back to their variables.
+        if (intermediate.getDebugInfo()) {
+            TIntermSymbol* intermSymbol = intermediate.addSymbol(*variable, loc);
+            TIntermTyped* initNode = intermediate.addAssign(EOpAssign, intermSymbol, initializer, loc);
+            return initNode;
         }
     } else {
         // normal assigning of a value to a variable...

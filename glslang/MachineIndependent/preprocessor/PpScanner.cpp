@@ -1264,6 +1264,8 @@ int TPpContext::tokenize(TPpToken& ppToken)
             stringifyDepth--;
             if (stringifyDepth == 0) {
                 snprintf(ppToken.name, sizeof(ppToken.name), "%s", stringifiedToken.name);
+                // Accumulate stringified result for active macro expansions
+                accumulateExpandedToken(PpAtomConstString, ppToken);
                 return PpAtomConstString;
             }
             continue;
@@ -1328,6 +1330,9 @@ int TPpContext::tokenize(TPpToken& ppToken)
             }
             continue;
         }
+
+        // Accumulate fully-expanded token text for all active macro expansions on the stack
+        accumulateExpandedToken(token, ppToken);
 
         return token;
     }
