@@ -1218,6 +1218,14 @@ TIntermTyped* TIntermediate::fold(TIntermAggregate* aggrNode)
     newNode->getWritableType().getQualifier().storage = EvqConst;
     newNode->setLoc(aggrNode->getLoc());
 
+    // Propagate originalVariable refs from aggregate children for LSP analysis.
+    TIntermSequence& seq = aggrNode->getSequence();
+    for (TIntermSequence::iterator p = seq.begin(); p != seq.end(); p++) {
+        const TIntermConstantUnion* childConst = (*p)->getAsConstantUnion();
+        if (childConst && childConst->hasOriginalVariable())
+            newNode->addOriginalVariables(childConst->getOriginalVariables());
+    }
+
     return newNode;
 }
 
@@ -1252,7 +1260,19 @@ TIntermTyped* TIntermediate::foldConstructor(TIntermAggregate* aggrNode)
     if (error)
         return aggrNode;
 
-    return addConstantUnion(unionArray, aggrNode->getType(), aggrNode->getLoc());
+    TIntermTyped* result = addConstantUnion(unionArray, aggrNode->getType(), aggrNode->getLoc());
+
+    // Propagate originalVariable refs from constructor children for LSP analysis.
+    if (result != nullptr) {
+        TIntermSequence& seq = aggrNode->getSequence();
+        for (TIntermSequence::iterator p = seq.begin(); p != seq.end(); p++) {
+            const TIntermConstantUnion* childConst = (*p)->getAsConstantUnion();
+            if (childConst && childConst->hasOriginalVariable())
+                result->getAsConstantUnion()->addOriginalVariables(childConst->getOriginalVariables());
+        }
+    }
+
+    return result;
 }
 
 //
@@ -1289,6 +1309,10 @@ TIntermTyped* TIntermediate::foldDereference(TIntermTyped* node, int index, cons
     else
         result->setType(dereferencedType);
 
+    // Propagate originalVariable refs through dereference folding for LSP analysis.
+    if (result != node && node->getAsConstantUnion() && node->getAsConstantUnion()->hasOriginalVariable())
+        result->getAsConstantUnion()->addOriginalVariables(node->getAsConstantUnion()->getOriginalVariables());
+
     return result;
 }
 
@@ -1310,6 +1334,10 @@ TIntermTyped* TIntermediate::foldSwizzle(TIntermTyped* node, TSwizzleSelectors<T
         result = node;
     else
         result->setType(TType(node->getBasicType(), EvqConst, selectors.size()));
+
+    // Propagate originalVariable refs through swizzle folding for LSP analysis.
+    if (result != node && node->getAsConstantUnion() && node->getAsConstantUnion()->hasOriginalVariable())
+        result->getAsConstantUnion()->addOriginalVariables(node->getAsConstantUnion()->getOriginalVariables());
 
     return result;
 }
