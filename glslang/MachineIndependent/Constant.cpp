@@ -365,6 +365,12 @@ TIntermTyped* TIntermConstantUnion::fold(TOperator op, const TIntermTyped* right
     if (rightNode->getAsConstantUnion() && rightNode->getAsConstantUnion()->hasOriginalVariable())
         newNode->addOriginalVariables(rightNode->getAsConstantUnion()->getOriginalVariables());
 
+    // Propagate folded function call refs from both operands for LSP analysis.
+    if (hasFoldedFunctionCall())
+        newNode->addFoldedFunctionCalls(getFoldedFunctionCalls());
+    if (rightNode->getAsConstantUnion() && rightNode->getAsConstantUnion()->hasFoldedFunctionCall())
+        newNode->addFoldedFunctionCalls(rightNode->getAsConstantUnion()->getFoldedFunctionCalls());
+
     return newNode;
 }
 
@@ -858,6 +864,10 @@ TIntermTyped* TIntermConstantUnion::fold(TOperator op, const TType& returnType) 
     if (hasOriginalVariable())
         newNode->addOriginalVariables(getOriginalVariables());
 
+    // Propagate folded function call refs through unary constant folding for LSP analysis.
+    if (hasFoldedFunctionCall())
+        newNode->addFoldedFunctionCalls(getFoldedFunctionCalls());
+
     return newNode;
 }
 
@@ -1225,6 +1235,16 @@ TIntermTyped* TIntermediate::fold(TIntermAggregate* aggrNode)
         if (childConst && childConst->hasOriginalVariable())
             newNode->addOriginalVariables(childConst->getOriginalVariables());
     }
+
+    // Propagate folded function call refs from aggregate children for LSP analysis.
+    for (TIntermSequence::iterator p = seq.begin(); p != seq.end(); p++) {
+        const TIntermConstantUnion* childConst = (*p)->getAsConstantUnion();
+        if (childConst && childConst->hasFoldedFunctionCall())
+            newNode->addFoldedFunctionCalls(childConst->getFoldedFunctionCalls());
+    }
+
+    // Record THIS aggregate function call AST node as a folded function call.
+    newNode->addFoldedFunctionCall(aggrNode);
 
     return newNode;
 }

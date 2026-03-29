@@ -455,8 +455,16 @@ TIntermTyped* TIntermediate::addUnaryMath(TOperator op, TIntermTyped* child,
     node->updatePrecision();
 
     // If it's a (non-specialization) constant, it must be folded.
-    if (node->getOperand()->getAsConstantUnion())
-        return node->getOperand()->getAsConstantUnion()->fold(op, node->getType());
+    if (node->getOperand()->getAsConstantUnion()) {
+        TIntermTyped* folded = node->getOperand()->getAsConstantUnion()->fold(op, node->getType());
+        if (folded) {
+            // Record folded function call AST node for LSP analysis.
+            TIntermConstantUnion* foldedConst = folded->getAsConstantUnion();
+            if (foldedConst)
+                foldedConst->addFoldedFunctionCall(node);
+            return folded;
+        }
+    }
 
     // If it's a specialization constant, the result is too,
     // if the operation is allowed for specialization constants.
@@ -485,8 +493,15 @@ TIntermTyped* TIntermediate::addBuiltInFunctionCall(const TSourceLoc& loc, TOper
 
         if (child->getAsConstantUnion()) {
             TIntermTyped* folded = child->getAsConstantUnion()->fold(op, returnType);
-            if (folded)
+            if (folded) {
+                // Record folded function call AST node for LSP analysis.
+                TIntermConstantUnion* foldedConst = folded->getAsConstantUnion();
+                if (foldedConst) {
+                    TIntermUnary* callNode = addUnaryNode(op, child, loc, returnType);
+                    foldedConst->addFoldedFunctionCall(callNode);
+                }
                 return folded;
+            }
         }
 
         return addUnaryNode(op, child, loc, returnType);
