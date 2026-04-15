@@ -9228,6 +9228,12 @@ TIntermNode* TParseContext::declareVariable(const TSourceLoc& loc, TString& iden
         bool remapped = vkRelaxedRemapUniformVariable(loc, identifier, publicType, arraySizes, initializer, type);
 
         if (remapped) {
+            if (intermediate.getDebugInfo() && globalUniformBlock &&
+                globalUniformBlock->getType().getStruct()->size() == 1) {
+                auto decl = new TIntermVariableDecl(intermediate.addSymbol(*globalUniformBlock, loc), nullptr);
+                decl->setLoc(loc);
+                return decl;
+            }
             return nullptr;
         }
     }
