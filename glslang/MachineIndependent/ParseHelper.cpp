@@ -10227,7 +10227,7 @@ void TParseContext::updateBindlessQualifier(TType& memberType)
 // Do everything needed to add an interface block. Returns the declarator node if there's an instance declaration.
 //
 TIntermNode* TParseContext::declareBlock(const TSourceLoc& loc, TTypeList& typeList, const TString* instanceName,
-    TArraySizes* arraySizes)
+    TArraySizes* arraySizes, const TSourceLoc* instanceNameLoc)
 {
     if (spvVersion.vulkan > 0 && spvVersion.vulkanRelaxed)
         blockStorageRemap(loc, blockName, currentBlockQualifier);
@@ -10520,8 +10520,9 @@ TIntermNode* TParseContext::declareBlock(const TSourceLoc& loc, TTypeList& typeL
 
     TIntermAggregate* declNode = nullptr;
     if (intermediate.getDebugInfo()) {
-        auto blockDeclNode = new TIntermVariableDecl(intermediate.addSymbol(variable, loc), nullptr);
-        blockDeclNode->setLoc(loc);
+        const TSourceLoc& declLoc = instanceNameLoc ? *instanceNameLoc : loc;
+        auto blockDeclNode = new TIntermVariableDecl(intermediate.addSymbol(variable, declLoc), nullptr);
+        blockDeclNode->setLoc(declLoc);
 
         // We have to wrap the declaration with a sequence to fit the same processing logic with variables.
         declNode = new TIntermAggregate(EOpSequence);

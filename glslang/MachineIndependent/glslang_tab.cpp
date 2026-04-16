@@ -6795,7 +6795,7 @@ yyreduce:
   case 100: /* declaration: block_structure IDENTIFIER SEMICOLON  */
 #line 916 "MachineIndependent\\glslang.y"
                                            {
-        (yyval.interm.intermNode) = parseContext.declareBlock((yyvsp[-2].interm).loc, *(yyvsp[-2].interm).typeList, (yyvsp[-1].lex).string);
+        (yyval.interm.intermNode) = parseContext.declareBlock((yyvsp[-2].interm).loc, *(yyvsp[-2].interm).typeList, (yyvsp[-1].lex).string, nullptr, &(yyvsp[-1].lex).loc);
     }
 #line 6803 "MachineIndependent\\glslang_tab.cpp"
     break;
@@ -6803,7 +6803,7 @@ yyreduce:
   case 101: /* declaration: block_structure IDENTIFIER array_specifier SEMICOLON  */
 #line 919 "MachineIndependent\\glslang.y"
                                                            {
-        (yyval.interm.intermNode) = parseContext.declareBlock((yyvsp[-3].interm).loc, *(yyvsp[-3].interm).typeList, (yyvsp[-2].lex).string, (yyvsp[-1].interm).arraySizes);
+        (yyval.interm.intermNode) = parseContext.declareBlock((yyvsp[-3].interm).loc, *(yyvsp[-3].interm).typeList, (yyvsp[-2].lex).string, (yyvsp[-1].interm).arraySizes, &(yyvsp[-2].lex).loc);
     }
 #line 6811 "MachineIndependent\\glslang_tab.cpp"
     break;

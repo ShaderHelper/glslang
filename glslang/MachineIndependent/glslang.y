@@ -912,10 +912,10 @@ declaration
         $$ = parseContext.declareBlock($1.loc, *$1.typeList);
     }
     | block_structure IDENTIFIER SEMICOLON {
-        $$ = parseContext.declareBlock($1.loc, *$1.typeList, $2.string);
+        $$ = parseContext.declareBlock($1.loc, *$1.typeList, $2.string, nullptr, &$2.loc);
     }
     | block_structure IDENTIFIER array_specifier SEMICOLON {
-        $$ = parseContext.declareBlock($1.loc, *$1.typeList, $2.string, $3.arraySizes);
+        $$ = parseContext.declareBlock($1.loc, *$1.typeList, $2.string, $3.arraySizes, &$2.loc);
     }
     | type_qualifier SEMICOLON {
         parseContext.globalQualifierFixCheck($1.loc, $1.qualifier);
