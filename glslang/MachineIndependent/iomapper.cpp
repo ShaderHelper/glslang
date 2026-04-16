@@ -1431,7 +1431,7 @@ struct TDefaultIoResolver : public TDefaultIoResolverBase {
             if (type.getQualifier().hasBinding()) {
                 return ent.newBinding = reserveSlot(
                            set, getBaseBinding(stage, resource, set) + type.getQualifier().layoutBinding, numBindings);
-            } else if (ent.live && doAutoBindingMapping()) {
+            } else if (doAutoBindingMapping()) {
                 // find free slot, the caller did make sure it passes all vars with binding
                 // first and now all are passed that do not have a binding and needs one
                 return ent.newBinding = getFreeSlot(set, getBaseBinding(stage, resource, set), numBindings);
