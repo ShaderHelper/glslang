@@ -10231,6 +10231,12 @@ TIntermNode* TParseContext::declareBlock(const TSourceLoc& loc, TTypeList& typeL
 {
     if (spvVersion.vulkan > 0 && spvVersion.vulkanRelaxed)
         blockStorageRemap(loc, blockName, currentBlockQualifier);
+
+    // If allPushConstantAsUniform is set, remap any push_constant block to uniform
+    if (intermediate.getAllPushConstantAsUniform() && currentBlockQualifier.isPushConstant()) {
+        currentBlockQualifier.setBlockStorage(EbsUniform);
+    }
+
     blockStageIoCheck(loc, currentBlockQualifier);
     blockQualifierCheck(loc, currentBlockQualifier, instanceName != nullptr);
     if (arraySizes != nullptr) {

@@ -1921,6 +1921,8 @@ void TShader::setTextureSamplerTransformMode(EShTextureSamplerTransformMode mode
 
 void TShader::addBlockStorageOverride(const char* nameStr, TBlockStorageClass backing) { intermediate->addBlockStorageOverride(nameStr, backing); }
 
+void TShader::setAllPushConstantAsUniform(bool enable) { intermediate->setAllPushConstantAsUniform(enable); }
+
 void TShader::setGlobalUniformBlockName(const char* name) { intermediate->setGlobalUniformBlockName(name); }
 void TShader::setGlobalUniformSet(unsigned int set) { intermediate->setGlobalUniformSet(set); }
 void TShader::setGlobalUniformBinding(unsigned int binding) { intermediate->setGlobalUniformBinding(binding); }
