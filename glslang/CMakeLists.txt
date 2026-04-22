@@ -193,6 +193,23 @@ if(ENABLE_SPIRV)
     if(ENABLE_OPT)
         target_include_directories(glslang PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../External>)
+        # When building glslang as a shared library, SPIRV-Tools static archives
+        # are absorbed into it. Without hidden visibility on those targets their
+        # spvtools::* symbols leak out and can be hijacked by dyld at runtime.
+         if(BUILD_SHARED_LIBS)
+            foreach(_spv_tgt SPIRV-Tools SPIRV-Tools-opt SPIRV-Tools-link SPIRV-Tools-reduce SPIRV-Tools-lint)
+                if(TARGET ${_spv_tgt})
+                    get_target_property(_spv_real ${_spv_tgt} ALIASED_TARGET)
+                    if(NOT _spv_real)
+                        set(_spv_real ${_spv_tgt})
+                    endif()
+                    set_target_properties(${_spv_real} PROPERTIES
+                        CXX_VISIBILITY_PRESET     hidden
+                        C_VISIBILITY_PRESET       hidden
+                        VISIBILITY_INLINES_HIDDEN ON)
+                endif()
+            endforeach()
+        endif()
         target_link_libraries(glslang SPIRV-Tools-opt)
     endif()
 endif()
